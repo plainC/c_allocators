@@ -229,6 +229,26 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
     return newp;
 }
 
+/* Returns the bank identifier (zero or one) from which
+ * bank the pointer has been allocated. If the pointer
+ * is not allocated using the frame allocator, -1 is
+ * returned.
+ */
+static inline int
+frame_get_bank_by_ptr(void* ptr)
+{
+    unsigned char* _p = (unsigned char*) ptr;
+
+    if (_p < _frame_allocator->start ||
+        _p >= _frame_allocator->start + (_frame_allocator->size << 1))
+        return -1;
+
+    if (_p < _frame_allocator->start + _frame_allocator->size)
+        return 0;
+
+    return 1;
+}
+
 /* Swaps the current frame. Clears the frame which
  * will become the current frame if 'clear' is true.
  * Note that there needs to be some time between
