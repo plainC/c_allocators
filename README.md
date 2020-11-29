@@ -64,6 +64,27 @@ frame_swap();
 // sword has now been destroyed
 ```
 
+## Passing explicit context instead of using a global variable
+
+It is possible to compile the library to use an explicit context
+instead of using global context. This is done by defining
+`#define FRAME_WITH_CONTEXT` before including `frame_allocator.h`.
+The API is changed so that you must pass the context to all
+functions. For `frame_allocator_init` and `frame_allocator_swap`
+you must pass pointer to pointer. For instance,
+
+```
+frame_allocator_t* fa;
+frame_allocator_init(&fa, 1024);
+int* a = frame_malloc(fa, sizeof(int));
+*a = 42;
+frame_swap(&fa);
+int* b = frame_malloc(fa, sizeof(int));
+*b = *a + 1;
+...
+frame_allocator_destroy(fa);
+```
+
 ## Platform requirements
 
 The library has been written to Linux/Posix but can be easily
@@ -76,7 +97,7 @@ simply to be `1`.
 ## Installation
 
 To use the library just include `frame_allocator.h`. There are
-two example probrams included in the repository. To build them
+four example programs included in the repository. To build them
 on Linux, type `make`, and to run them, type `make run`.
 
 ## API

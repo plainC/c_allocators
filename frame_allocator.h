@@ -31,6 +31,19 @@
 #include <stdint.h>
 
 
+#ifdef FRAME_WITH_CONTEXT
+# define FRAME_CONTEXT_DECLAREP frame_allocator_t** _frame_allocator,
+# define FRAME_CONTEXT_DECLAREV frame_allocator_t* _frame_allocator
+# define FRAME_CONTEXT_DECLARE FRAME_CONTEXT_DECLAREV,
+# define FRAME_CONTEXT _frame_allocator,
+#else
+# define FRAME_CONTEXT_DECLAREP
+# define FRAME_CONTEXT_DECLAREV
+# define FRAME_CONTEXT_DECLARE
+# define FRAME_CONTEXT
+#endif
+
+
 /* Define FRAME_REALLOC if you want to be able to reallocate
  * objects. */
 #ifdef FRAME_REALLOC
@@ -94,19 +107,20 @@ typedef struct {
 } frame_allocator_t;
 
 
+#ifndef FRAME_WITH_CONTEXT
 /* Use DECLARE_FRAME_ALLOCATOR() to declare frame allocator
  * in the source file */
 #define DECLARE_FRAME_ALLOCATOR()                              \
     frame_allocator_t* _frame_allocator
 
-
 extern DECLARE_FRAME_ALLOCATOR();
+#endif
 
 
 /* Get the frame allocator structure from the given bank.
  * Bank must be 0 or 1. */
 static inline frame_allocator_t*
-frame_allocator_get(int bank)
+frame_allocator_get(FRAME_CONTEXT_DECLARE int bank)
 {
     return (frame_allocator_t*)
             (_frame_allocator->start +
@@ -120,7 +134,7 @@ frame_allocator_get(int bank)
  * returned.
  */
 static inline int
-frame_get_bank_by_ptr(void* ptr)
+frame_get_bank_by_ptr(FRAME_CONTEXT_DECLARE void* ptr)
 {
     unsigned char* _p = (unsigned char*) ptr;
 
@@ -139,7 +153,7 @@ frame_get_bank_by_ptr(void* ptr)
  * size of the frame size. In addition, frame needs
  * to have space for the frame structure. */
 static inline int
-frame_allocator_init(size_t frame_size)
+frame_allocator_init(FRAME_CONTEXT_DECLAREP size_t frame_size)
 {
     frame_allocator_t* allocator;
     unsigned char* area = malloc(frame_size << 1);
@@ -164,6 +178,9 @@ frame_allocator_init(size_t frame_size)
     allocator->cleanups = NULL;
 
     /* Activate bank 0 */
+#ifdef FRAME_WITH_CONTEXT
+    *
+#endif
     _frame_allocator = (frame_allocator_t*)
             (area + frame_size - sizeof(frame_allocator_t));
 
@@ -187,13 +204,13 @@ frame_allocator_clean_up(frame_allocator_t* allocator)
  * once this function is called.
  */
 static inline void
-frame_allocator_destroy()
+frame_allocator_destroy(FRAME_CONTEXT_DECLAREV)
 {
     int bank = !GETBANK(_frame_allocator->fp);
 
-    frame_allocator_t* allocator = frame_allocator_get(bank);
+    frame_allocator_t* allocator = frame_allocator_get(FRAME_CONTEXT bank);
     frame_allocator_clean_up(allocator);
-    allocator = frame_allocator_get(!bank);
+    allocator = frame_allocator_get(FRAME_CONTEXT !bank);
     frame_allocator_clean_up(allocator);
 
     free(_frame_allocator->start);
@@ -202,7 +219,7 @@ frame_allocator_destroy()
 /* Allocate space from the current frame. Returns NULL,
  * if the frame is full. */
 static inline void*
-frame_malloc(size_t size)
+frame_malloc(FRAME_CONTEXT_DECLARE size_t size)
 {
     unsigned char* orig;
     unsigned char* newp;
@@ -224,9 +241,9 @@ frame_malloc(size_t size)
 /* Allocate space from the current frame. Returns NULL,
  * if the frame is full. The memory is cleared. */
 static inline void*
-frame_malloc0(size_t size)
+frame_malloc0(FRAME_CONTEXT_DECLARE size_t size)
 {
-    void* p = frame_malloc(size);
+    void* p = frame_malloc(FRAME_CONTEXT size);
 
     if (!p)
         return NULL;
@@ -244,15 +261,15 @@ frame_malloc0(size_t size)
  * callback use fraem_realloc_with_cleanup instead.
  */
 static inline void*
-frame_realloc(void* ptr, size_t size)
+frame_realloc(FRAME_CONTEXT_DECLARE void* ptr, size_t size)
 {
     unsigned old_size = GET_REALLOC_SIZE(ptr);
 
-    if (frame_get_bank_by_ptr(ptr) == (int) GETBANK(_frame_allocator->fp) &&
+    if (frame_get_bank_by_ptr(FRAME_CONTEXT ptr) == (int) GETBANK(_frame_allocator->fp) &&
         old_size >= size)
         return ptr;
 
-    void* newp = frame_malloc(size);
+    void* newp = frame_malloc(FRAME_CONTEXT size);
     if (!newp)
         return NULL;
 
@@ -267,7 +284,7 @@ frame_realloc(void* ptr, size_t size)
  * a callback for clean up. Returns NULL, if the frame
  * is full. */
 static inline void*
-frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
+frame_malloc_with_cleanup(FRAME_CONTEXT_DECLARE size_t size, void (*cleanup)(void*))
 {
     unsigned char* orig;
     unsigned char* newp;
@@ -303,19 +320,19 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
  * a callback for clean up. Returns NULL, if the frame
  * is full. */
 static inline void*
-frame_realloc_with_cleanup(void* ptr, size_t size)
+frame_realloc_with_cleanup(FRAME_CONTEXT_DECLARE void* ptr, size_t size)
 {
     int bank = GETBANK(_frame_allocator->fp);
     unsigned old_size = GET_REALLOC_SIZE(ptr);
     frame_clean_up_cb_list_t* e = NULL;
 
-    if (frame_get_bank_by_ptr(ptr) == bank) {
+    if (frame_get_bank_by_ptr(FRAME_CONTEXT ptr) == bank) {
         if (old_size >= size)
             return ptr;
     } else
         bank = !bank;
 
-    frame_allocator_t* allocator = frame_allocator_get(bank);
+    frame_allocator_t* allocator = frame_allocator_get(FRAME_CONTEXT bank);
 
     for (e = allocator->cleanups; e; e = e->next) {
         if (e->data == ptr)
@@ -325,7 +342,7 @@ frame_realloc_with_cleanup(void* ptr, size_t size)
     if (!e)
         return NULL;
 
-    void* newp = frame_malloc_with_cleanup(size, e->cb);
+    void* newp = frame_malloc_with_cleanup(FRAME_CONTEXT size, e->cb);
 
     if (!newp)
         return NULL;
@@ -367,18 +384,26 @@ frame_realloc_with_cleanup(void* ptr, size_t size)
  * *a = 6; // NOT OK, var 'a' is "freed"
  */
 static inline void
-frame_swap(bool clear)
+frame_swap(FRAME_CONTEXT_DECLAREP bool clear)
 {
+#ifdef FRAME_WITH_CONTEXT
+    int bank = !GETBANK((*_frame_allocator)->fp);
+    frame_allocator_t* allocator = frame_allocator_get(*_frame_allocator, bank);
+#else
     int bank = !GETBANK(_frame_allocator->fp);
+    frame_allocator_t* allocator = frame_allocator_get(FRAME_CONTEXT bank);
+#endif
 
     LOGGER_DEBUG("Using bank: %d\n", bank);
-    frame_allocator_t* allocator = frame_allocator_get(bank);
 
     if (clear) {
         frame_allocator_clean_up(allocator);
         allocator->fp = SETBANK(allocator, bank);
     }
 
+#ifdef FRAME_WITH_CONTEXT
+    *
+#endif
     _frame_allocator = allocator;
 }
 
