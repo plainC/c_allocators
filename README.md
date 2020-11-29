@@ -94,6 +94,21 @@ By default, it uses `atomic_compare_exchange_week` which requires
 `stdatomic.h`. If you do not use threads you can define this macro
 simply to be `1`.
 
+By default the library uses `bzero` and `strings.h` to clear
+memory. This can be overriden by defining, for example,
+`#define BZERO(ptr,n) SecureZeroMemory(ptr,n)` before including
+the library.
+
+By default the library uses `malloc` and `free` to allocate and
+free the frame allocation area. To override them, for example,
+define the following macros:
+
+```
+#define MALLOC(size) HeapAlloc(GetProcessHeap(), 0, size)
+#define FREE(ptr) HeapFree(GetProcessHeap(), 0, ptr)
+```
+
+
 ## Installation
 
 To use the library just include `frame_allocator.h`. There are

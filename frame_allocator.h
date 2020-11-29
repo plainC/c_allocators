@@ -31,6 +31,16 @@
 #include <stdint.h>
 
 
+#ifndef MALLOC
+#define MALLOC(size) malloc(size)
+#endif
+
+
+#ifndef FREE
+#define FREE(ptr) free(ptr)
+#endif
+
+
 #ifdef FRAME_WITH_CONTEXT
 # define FRAME_CONTEXT_DECLAREP frame_allocator_t** _frame_allocator,
 # define FRAME_CONTEXT_DECLAREV frame_allocator_t* _frame_allocator
@@ -156,7 +166,7 @@ static inline int
 frame_allocator_init(FRAME_CONTEXT_DECLAREP size_t frame_size)
 {
     frame_allocator_t* allocator;
-    unsigned char* area = malloc(frame_size << 1);
+    unsigned char* area = MALLOC(frame_size << 1);
 
     if (!area)
         return 1;
@@ -213,7 +223,7 @@ frame_allocator_destroy(FRAME_CONTEXT_DECLAREV)
     allocator = frame_allocator_get(FRAME_CONTEXT !bank);
     frame_allocator_clean_up(allocator);
 
-    free(_frame_allocator->start);
+    FREE(_frame_allocator->start);
 }
 
 /* Allocate space from the current frame. Returns NULL,
