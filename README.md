@@ -35,6 +35,12 @@ By default, it uses `atomic_compare_exchange_week` which requires
 `stdatomic.h`. If you do not use threads you can define this macro
 simply to be `1`.
 
+## Installation
+
+To use the library just include `frame_allocator.h`. There are
+two example probrams included in the repository. To build them
+on Linux, type `make`, and to run them, type `make run`.
+
 ## API
 
 ### DECLARE_FRAME_ALLOCATOR()
