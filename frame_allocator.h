@@ -27,19 +27,29 @@
 
 
 #include <stdlib.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 
 #ifndef LOGGER_DEBUG
+# include <stdio.h>
 # define LOGGER_DEBUG(...) printf(__VA_ARGS__)
 #endif
 
 
 /* Compare and swap method */
+#ifndef CAS
+#include <stdatomic.h>
 #define CAS(destp,origp,newval)                                \
     atomic_compare_exchange_weak(destp,origp,newval)
+#endif
+
+
+/* bzero method */
+#ifndef BZERO
+#include <strings.h>
+#define BZERO(p,size) bzero(p,size)
+#endif
 
 
 /* Tagged pointers */
@@ -172,6 +182,21 @@ frame_malloc(size_t size)
     return newp;
 }
 
+/* Allocate space from the current frame. Returns NULL,
+ * if the frame is full. The memory is cleared. */
+static inline void*
+frame_malloc0(size_t size)
+{
+    void* p = frame_malloc(size);
+
+    if (!p)
+        return NULL;
+
+    BZERO(p, size);
+
+    return p;
+}
+
 /* Allocate space from the current frame and register
  * a callback for clean up. Returns NULL, if the frame
  * is full. */
@@ -196,6 +221,7 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
             (frame_clean_up_cb_list_t*) (newp + size);
     elem->cb = cleanup;
     elem->data = newp;
+    BZERO(newp, size);
     do {
         elem->next = *cleanups;
     } while (!CAS(cleanups, &elem->next, elem));
