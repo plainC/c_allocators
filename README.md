@@ -27,14 +27,42 @@ clean up callback at the same time we allocate memory. Once
 the bank is swapped the second time, the callback is run.
 
 The libray also supports `frame_realloc(ptr,size)` if `FRAME_REALLOC`
-macro is defined before inclusion. The reallocation method with
-the old size can be used to copy objects from the previous bank
-to the current. If the object has a clean up callback, it is
-be moved as well to the current bank (note use
+macro is defined before inclusion. The size of the object is
+then stored with the object, so each allocation takes four
+bytes more space.
+
+## Moving objects from the previous bank to the current bank
+
+`frame_realloc` and `frame_realloc_with_callback` methods
+can be used to copy objects from the previous bank to the new
+one. Just switch the bank and call reallocation with the same
+size to get a copy. If the object has a clean up callback, it is
+moved as well to the current bank (note use
 `frame_realloc_with_callback`). So, for instance, if a player
 has picked up a sword in the previous level, the sword object
 can be copied to the current level with a `realloc` call, and the
-registered clean up is postponed by one bank swapping.
+registered clean up is postponed by one bank swapping. So,
+for example,
+
+```
+sword_t* sword = frame_malloc_with_callback(sizeof(sword_t), sword_destroy);
+...
+// this does not do anything since bank has not been swapped
+sword = frame_realloc_with_callback(sword, sizeof(sword_t));
+...
+frame_swap();
+...
+// this takes a copy of the sword, and the clean up is postponed
+sword = frame_realloc_with_callback(sword, sizeof(sword_t));
+...
+frame_swap();
+...
+// sword object still exists
+player_use(sword);
+...
+frame_swap();
+// sword has now been destroyed
+```
 
 ## Platform requirements
 
