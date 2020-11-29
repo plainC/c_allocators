@@ -301,9 +301,7 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
 #ifdef FRAME_REALLOC
 /* Rellocate space from the current frame and register
  * a callback for clean up. Returns NULL, if the frame
- * is full. If the clean up is removed from the old bank
- * and the old content is copied to the newly allocated
- * area. */
+ * is full. */
 static inline void*
 frame_realloc_with_cleanup(void* ptr, size_t size)
 {
