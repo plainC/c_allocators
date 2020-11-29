@@ -33,7 +33,7 @@ ported to any system supporting compare and swap operation. Just
 redefine `CAS(destp,origp,newval)` before including the library.
 By default, it uses `atomic_compare_exchange_week` which requires
 `stdatomic.h`. If you do not use threads you can define this macro
-simply to be 1.
+simply to be `1`.
 
 ## API
 
@@ -47,13 +47,13 @@ should declare the frame allocator once.
 
 ### int frame_allocator_init(size_t frame_size)
 
-Initialize frame allocator with the given size.
+Initializes the frame allocator with the given size.
 Note that the actual space needed is twice the
 size of the frame size. In addition, frame needs
 to have space for the frame structure (32 bytes on modern
 platforms). If the allocator
 could not be initialized, the function return non zero.
-On success, 0 is returned.
+On success, `0` is returned.
 
 ### void frame_allocator_destroy()
 
@@ -75,10 +75,7 @@ if the frame is full. The allocated memory is cleared.
 Allocate space from the current frame and register
 a callback for clean up. Returns `NULL`, if the frame
 is full. The clean up is called on the second call
-to `frame_swap`. In a multi-threaded set up, the clean up
-method should be able to handle case where the object
-has been allocated but not yet properly constructed. In order
-to help this job, `frame_malloc_with_cleanup` always clears
+to `frame_swap`. `frame_malloc_with_cleanup` always clears
 the allocated memory before returning.
 
 ### void frame_swap(bool clear)
