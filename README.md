@@ -40,7 +40,7 @@ simply to be 1.
 ### DECLARE_FRAME_ALLOCATOR()
 
 Use this macro to declare a global variable to hold the frame
-allocator. We do not want to pass frame allocator to frame_malloc
+allocator. We do not want to pass frame allocator to `frame_malloc`
 function each time it is called, since we want to match the
 signature of the original malloc. A program using the library
 should declare the frame allocator once.
@@ -50,13 +50,14 @@ should declare the frame allocator once.
 Initialize frame allocator with the given size.
 Note that the actual space needed is twice the
 size of the frame size. In addition, frame needs
-to have space for the frame structure. If the allocator
+to have space for the frame structure (32 bytes on modern
+platforms). If the allocator
 could not be initialized, the function return non zero.
 On success, 0 is returned.
 
 ### void frame_allocator_destroy()
 
-Destroy frame allocator. No more allocations are allowed
+Destroy the frame allocator. No more allocations are allowed
 once this function is called.
 
 ### void* frame_malloc(size_t size)
@@ -64,12 +65,21 @@ once this function is called.
 Allocate space from the current frame. Returns `NULL`,
 if the frame is full.
 
+### void* frame_malloc0(size_t size)
+
+Allocate space from the current frame. Returns `NULL`,
+if the frame is full. The allocated memory is cleared.
+
 ### void* frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
 
 Allocate space from the current frame and register
 a callback for clean up. Returns `NULL`, if the frame
 is full. The clean up is called on the second call
-to `frame_swap`.
+to `frame_swap`. In a multi-threaded set up, the clean up
+method should be able to handle case where the object
+has been allocated but not yet properly constructed. In order
+to help this job, `frame_malloc_with_cleanup` always clears
+the allocated memory before returning.
 
 ### void frame_swap(bool clear)
 
