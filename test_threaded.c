@@ -16,20 +16,6 @@
 
 DECLARE_FRAME_ALLOCATOR();
 
-void cb_a(int* a)
-{
-    printf("  Destroy a: %d\n", *a);
-}
-
-void cb_b(int* b)
-{
-    printf("  Destroy b: %d\n", *b);
-}
-
-void cb_c(int* c)
-{
-    printf("  Destroy c: %d\n", *c);
-}
 
 void*
 thread_cb(void* arg)
