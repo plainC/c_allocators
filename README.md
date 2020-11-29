@@ -86,8 +86,11 @@ Note that there needs to be some time between
 frame swaps to ensure that all threads have
 been scheduled to finish `frame_malloc_with_cleanup`
 if the thread's time slice happed to run out
-between the two `CAS` operations. Typically this is
-not an issue, however.
+between the two `CAS` operations. In addition, some
+objects with clean up callbacks may have been allocated
+but not fully constructed. Typically this is
+not an issue, however, if the time between frame swaps
+is in seconds and constructors finish in microseconds.
 
 Use just one thread to master frame swapping.
 The memory area allocated before two
