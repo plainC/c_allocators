@@ -6,13 +6,12 @@
 
 /* We run multiple threads which allocate memory to write integers.
  * We switch bank once per second. Each time bank is switched we
- * check that all allocation still holds the original value.
+ * check that all allocations still holds the original value.
  */
 
 #define USLEEP_BETWEEN_ALLOCS  10
 #define TEST_LENGTH_IN_SECONDS 12
 #define MAX_PTRS (10000000 / USLEEP_BETWEEN_ALLOCS)
-
 
 DECLARE_FRAME_ALLOCATOR();
 
