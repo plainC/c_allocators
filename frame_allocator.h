@@ -31,6 +31,22 @@
 #include <stdint.h>
 
 
+/* Define FRAME_REALLOC if you want to be able to reallocate
+ * objects. */
+#ifdef FRAME_REALLOC
+#include <string.h>
+# define REALLOC_HEADER_SIZE                        \
+         (sizeof(unsigned))
+# define SET_REALLOC_SIZE(ptr,size)                 \
+         *((unsigned*)(ptr)) = (size)
+# define GET_REALLOC_SIZE(ptr)                      \
+         (*((unsigned*)((ptr) - sizeof(unsigned))))
+#else
+# define REALLOC_HEADER_SIZE            0
+# define SET_REALLOC_SIZE(ptr,size)     do {} while (0)
+#endif
+
+
 #ifndef LOGGER_DEBUG
 # include <stdio.h>
 # define LOGGER_DEBUG(...) printf(__VA_ARGS__)
@@ -98,6 +114,26 @@ frame_allocator_get(int bank)
             sizeof(frame_allocator_t));
 }
 
+/* Returns the bank identifier (zero or one) from which
+ * bank the pointer has been allocated. If the pointer
+ * is not allocated using the frame allocator, -1 is
+ * returned.
+ */
+static inline int
+frame_get_bank_by_ptr(void* ptr)
+{
+    unsigned char* _p = (unsigned char*) ptr;
+
+    if (_p < _frame_allocator->start ||
+        _p >= _frame_allocator->start + (_frame_allocator->size << 1))
+        return -1;
+
+    if (_p < _frame_allocator->start + _frame_allocator->size)
+        return 0;
+
+    return 1;
+}
+
 /* Initialize frame allocator with the given size.
  * Note that the actual space needed is twice the
  * size of the frame size. In addition, frame needs
@@ -141,7 +177,8 @@ frame_allocator_clean_up(frame_allocator_t* allocator)
 {
     for (frame_clean_up_cb_list_t* elem = allocator->cleanups;
          elem; elem = elem->next)
-        elem->cb(elem->data);
+        if (elem->cb)
+            elem->cb(elem->data);
 
     allocator->cleanups = NULL;
 }
@@ -172,14 +209,16 @@ frame_malloc(size_t size)
 
     do {
         orig = _frame_allocator->fp;
-        newp = UNTAG(orig) - size;
+        newp = UNTAG(orig) - size - REALLOC_HEADER_SIZE;
         if (newp < _frame_allocator->start)
             return NULL;
     } while (!CAS(&_frame_allocator->fp,
                   &orig,
                   SETBANK(newp, GETBANK(orig))));
 
-    return newp;
+    SET_REALLOC_SIZE(newp, size);
+
+    return newp + REALLOC_HEADER_SIZE;
 }
 
 /* Allocate space from the current frame. Returns NULL,
@@ -197,6 +236,33 @@ frame_malloc0(size_t size)
     return p;
 }
 
+#ifdef FRAME_REALLOC
+
+/* Reallocate space from the current frame. Returns NULL,
+ * if the frame is full. The old content is copied to new
+ * location. Note that if you have registered a clean up
+ * callback use fraem_realloc_with_cleanup instead.
+ */
+static inline void*
+frame_realloc(void* ptr, size_t size)
+{
+    unsigned old_size = GET_REALLOC_SIZE(ptr);
+
+    if (frame_get_bank_by_ptr(ptr) == (int) GETBANK(_frame_allocator->fp) &&
+        old_size >= size)
+        return ptr;
+
+    void* newp = frame_malloc(size);
+    if (!newp)
+        return NULL;
+
+    memcpy(newp, ptr, old_size);
+
+    return newp;
+}
+
+#endif
+
 /* Allocate space from the current frame and register
  * a callback for clean up. Returns NULL, if the frame
  * is full. */
@@ -210,7 +276,8 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
     do {
         cleanups = &_frame_allocator->cleanups;
         orig = (unsigned char*) _frame_allocator->fp;
-        newp = UNTAG(orig) - size - sizeof(frame_clean_up_cb_list_t);
+        newp = UNTAG(orig) - size - sizeof(frame_clean_up_cb_list_t)
+               - REALLOC_HEADER_SIZE;
         if (newp < _frame_allocator->start)
             return NULL;
     } while (!CAS(&_frame_allocator->fp,
@@ -218,36 +285,61 @@ frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
                   SETBANK(newp, GETBANK(orig))));
 
     frame_clean_up_cb_list_t* elem =
-            (frame_clean_up_cb_list_t*) (newp + size);
+            (frame_clean_up_cb_list_t*) (newp + size + REALLOC_HEADER_SIZE);
     elem->cb = cleanup;
-    elem->data = newp;
-    BZERO(newp, size);
+    elem->data = newp + REALLOC_HEADER_SIZE;
+    BZERO(newp + REALLOC_HEADER_SIZE, size);
     do {
         elem->next = *cleanups;
     } while (!CAS(cleanups, &elem->next, elem));
 
+    SET_REALLOC_SIZE(newp, size);
+
+    return newp + REALLOC_HEADER_SIZE;
+}
+
+#ifdef FRAME_REALLOC
+/* Rellocate space from the current frame and register
+ * a callback for clean up. Returns NULL, if the frame
+ * is full. If the clean up is removed from the old bank
+ * and the old content is copied to the newly allocated
+ * area. */
+static inline void*
+frame_realloc_with_cleanup(void* ptr, size_t size)
+{
+    int bank = GETBANK(_frame_allocator->fp);
+    unsigned old_size = GET_REALLOC_SIZE(ptr);
+    frame_clean_up_cb_list_t* e = NULL;
+
+    if (frame_get_bank_by_ptr(ptr) == bank) {
+        if (old_size >= size)
+            return ptr;
+    } else
+        bank = !bank;
+
+    frame_allocator_t* allocator = frame_allocator_get(bank);
+
+    for (e = allocator->cleanups; e; e = e->next) {
+        if (e->data == ptr)
+            break;
+    }
+
+    if (!e)
+        return NULL;
+
+    void* newp = frame_malloc_with_cleanup(size, e->cb);
+
+    if (!newp)
+        return NULL;
+
+    memcpy(newp, ptr, old_size);
+    e->cb = NULL;
+    e->data = NULL;
+
     return newp;
 }
 
-/* Returns the bank identifier (zero or one) from which
- * bank the pointer has been allocated. If the pointer
- * is not allocated using the frame allocator, -1 is
- * returned.
- */
-static inline int
-frame_get_bank_by_ptr(void* ptr)
-{
-    unsigned char* _p = (unsigned char*) ptr;
-
-    if (_p < _frame_allocator->start ||
-        _p >= _frame_allocator->start + (_frame_allocator->size << 1))
-        return -1;
-
-    if (_p < _frame_allocator->start + _frame_allocator->size)
-        return 0;
-
-    return 1;
-}
+#endif
 
 /* Swaps the current frame. Clears the frame which
  * will become the current frame if 'clear' is true.
