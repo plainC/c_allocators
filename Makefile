@@ -14,7 +14,7 @@ test_threaded: frame_allocator.h test_threaded.c
 
 run: all
 	./test_simple
-	./test_threaded
+	./test_threaded 8
 
 
 clean:
