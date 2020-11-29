@@ -51,7 +51,11 @@ function each time it is called, since we want to match the
 signature of the original malloc. A program using the library
 should declare the frame allocator once.
 
-### int frame_allocator_init(size_t frame_size)
+### frame_allocator_init()
+
+```
+int frame_allocator_init(size_t frame_size)
+```
 
 Initializes the frame allocator with the given size.
 Note that the actual space needed is twice the
@@ -61,22 +65,38 @@ platforms). If the allocator
 could not be initialized, the function return non zero.
 On success, `0` is returned.
 
-### void frame_allocator_destroy()
+### frame_allocator_destroy()
+
+```
+void frame_allocator_destroy()
+```
 
 Destroy the frame allocator. No more allocations are allowed
 once this function is called.
 
-### void* frame_malloc(size_t size)
+### frame_malloc()
+
+```
+void* frame_malloc(size_t size)
+```
 
 Allocate space from the current frame. Returns `NULL`,
 if the frame is full.
 
-### void* frame_malloc0(size_t size)
+### frame_malloc0()
+
+```
+void* frame_malloc0(size_t size)
+```
 
 Allocate space from the current frame. Returns `NULL`,
 if the frame is full. The allocated memory is cleared.
 
-### void* frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
+### frame_malloc_with_cleanup()
+
+```
+void* frame_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
+```
 
 Allocate space from the current frame and register
 a callback for clean up. Returns `NULL`, if the frame
@@ -84,7 +104,11 @@ is full. The clean up is called on the second call
 to `frame_swap`. `frame_malloc_with_cleanup` always clears
 the allocated memory before returning.
 
-### void* frame_realloc(void* ptr, size_t size)
+### frame_realloc()
+
+```
+void* frame_realloc(void* ptr, size_t size)
+```
 
 Reallocate space from the current frame. Returns `NULL`,
 if the frame is full. The old content is copied to the new
@@ -98,7 +122,11 @@ is the same or less than the old size, and the bank
 has not been switched, the old pointer is returned. If
 bank has been switched, new copy is returned.
 
-### void* frame_realloc_with_cleanup(void* ptr, size)
+### frame_realloc_with_cleanup()
+
+```
+void* frame_realloc_with_cleanup(void* ptr, size)
+```
 
 Rellocate space from the current frame and register
 a callback for clean up. Returns `NULL`, if the frame
@@ -114,14 +142,22 @@ is the same or less than the old size, and the bank
 has not been switched, the old pointer is returned. If
 bank has been switched, new copy is returned.
 
-### int frame_get_bank_by_ptr(void* ptr)
+### frame_get_bank_by_ptr()
+
+```
+int frame_get_bank_by_ptr(void* ptr)
+```
 
 Returns the bank identifier (zero or one) from which
 bank the pointer has been allocated. If the pointer
 is not allocated using the frame allocator, -1 is
 returned.
 
-### void frame_swap(bool clear)
+### frame_swap()
+
+```
+void frame_swap(bool clear)
+```
 
 Swaps the current frame. Clears the frame which
 will become the current frame if `clear` is `true`.
