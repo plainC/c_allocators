@@ -26,6 +26,16 @@ etc. Thus, this frame allocator adds an option to register a
 clean up callback at the same time we allocate memory. Once
 the bank is swapped the second time, the callback is run.
 
+The libray also supports `frame_realloc(ptr,size)` if `FRAME_REALLOC`
+macro is defined before inclusion. The reallocation method with
+the old size can be used to copy objects from the previous bank
+to the current. If the object has a clean up callback, it is
+be moved as well to the current bank (note use
+`frame_realloc_with_callback`). So, for instance, if a player
+has picked up a sword in the previous level, the sword object
+can be copied to the current level with a `realloc` call, and the
+registered clean up is postponed by one bank swapping.
+
 ## Platform requirements
 
 The library has been written to Linux/Posix but can be easily
@@ -170,6 +180,12 @@ objects with clean up callbacks may have been allocated
 but not fully constructed. Typically this is
 not an issue, however, if the time between frame swaps
 is in seconds and constructors finish in microseconds.
+
+Note that `frame_realloc` or `frame_realloc_with_callback`
+methods should be used carefully to copy objects from
+the previous bank to the current one in multi-threaded
+applications. Best practise is to make all copies early
+right after the bank swapping.
 
 Use just one thread to master frame swapping.
 The memory area allocated before two
