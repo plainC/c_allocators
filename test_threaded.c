@@ -4,6 +4,16 @@
 #include "frame_allocator.h"
 
 
+/* We run multiple threads which allocate memory to write integers.
+ * We switch bank once per second. Each time bank is switched we
+ * check that all allocation still holds the original value.
+ */
+
+#define USLEEP_BETWEEN_ALLOCS  10
+#define TEST_LENGTH_IN_SECONDS 12
+#define MAX_PTRS (10000000 / USLEEP_BETWEEN_ALLOCS)
+
+
 DECLARE_FRAME_ALLOCATOR();
 
 void cb_a(int* a)
@@ -26,6 +36,8 @@ thread_cb(void* arg)
 {
     int* is_running = arg;
     int counter = 0;
+    int bank = frame_get_bank_by_ptr(frame_malloc(4));
+    int* ptrs[MAX_PTRS];
 
     while (*is_running) {
         int* a = frame_malloc(sizeof(int));
@@ -33,8 +45,17 @@ thread_cb(void* arg)
             printf("ALLOCATION ERROR\n");
             return NULL;
         }
+        if (bank != frame_get_bank_by_ptr(a)) {
+            for (int i=0; i < counter; i++)
+                if ((*ptrs[i]) != i)
+                    printf("ERROR: %d\n", i);
+            printf("  Thread check: bank %d (%d) ok\n", bank, counter);
+            counter = 0;
+            bank = !bank;
+        }
+        ptrs[counter] = a;
         *a = counter++;
-        usleep(4000);
+        usleep(USLEEP_BETWEEN_ALLOCS);
         if (*a != counter-1) {
             printf("ERROR\n");
             return NULL;
@@ -64,8 +85,8 @@ int main(int argc, char** argv)
         pthread_create(&id[i], NULL, thread_cb, &is_running);
 
 
-    for (int i=0; i < 10; i++) {
-        sleep(2);
+    for (int i=0; i < TEST_LENGTH_IN_SECONDS; i++) {
+        sleep(1);
         frame_swap(true);
     };
     is_running = 0;
