@@ -63,7 +63,7 @@
 # define SET_REALLOC_SIZE(ptr,size)                 \
          *((unsigned*)(ptr)) = (size)
 # define GET_REALLOC_SIZE(ptr)                      \
-         (*((unsigned*)((ptr) - sizeof(unsigned))))
+         (*((unsigned*)(((unsigned char*) (ptr)) - sizeof(unsigned))))
 #else
 # define REALLOC_HEADER_SIZE            0
 # define SET_REALLOC_SIZE(ptr,size)     do {} while (0)
