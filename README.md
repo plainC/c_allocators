@@ -66,8 +66,10 @@ frame_swap();
 
 ## Passing explicit context instead of using a global variable
 
+By default the frame allocator context is passed in a global
+variable to save redundant stack usage and programmer's nerves.
 It is possible to compile the library to use an explicit context
-instead of using global context. This is done by defining
+instead, however. This is done by defining
 `#define FRAME_WITH_CONTEXT` before including `frame_allocator.h`.
 The API is changed so that you must pass the context to all
 functions. For `frame_allocator_init` and `frame_allocator_swap`
@@ -87,12 +89,13 @@ frame_allocator_destroy(fa);
 
 ## Platform requirements
 
-The library has been written to Linux/Posix but can be easily
-ported to any system supporting compare and swap operation. Just
+The library has been written to Linux/Posix but has been tested
+also in Windows. It can be easily ported to any system supporting
+compare and swap operation. Just
 redefine `CAS(destp,origp,newval)` before including the library.
 By default, it uses `atomic_compare_exchange_week` which requires
 `stdatomic.h`. If you do not use threads you can define this macro
-simply to be `1`.
+simply to be `1` and compare and swap operation is not needed.
 
 By default the library uses `bzero` and `strings.h` to clear
 memory. This can be overriden by defining, for example,
@@ -111,9 +114,61 @@ define the following macros:
 
 ## Installation
 
+### On Linux platform
+
 To use the library just include `frame_allocator.h`. There are
 four example programs included in the repository. To build them
 on Linux, type `make`, and to run them, type `make run`.
+
+### On Microsoft platform
+
+The library can be configured externaly by defining a few macros
+before including `frame_allocator.h`. See the code below.
+
+```
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <Windows.h>
+
+static inline bool
+atomic_cas(void** object, void** expected, void* desired)
+{
+    bool success;
+
+    if (sizeof(void*) == 4) {
+        long* o = (long*) object;
+        LONG d = (LONG) desired;
+        long comp = (long) *expected;
+
+        int32_t value = _InterlockedCompareExchange(o, d, comp);
+        success = value == comp;
+        if (!success)
+            *expected = (void*) value;
+    } else {
+        int64_t* o = (int64_t*) object;
+        int64_t d = (int64_t) desired;
+        int64_t comp = (int64_t) *expected;
+
+        int64_t value = _InterlockedCompareExchange64(o, d, comp);
+        success = value == comp;
+        if (!success)
+            *expected = (void*) value;
+    }
+
+    return success;
+}
+
+#define CAS(object, expected, desired)      \
+    atomic_cas(object, expected, desired)
+#define BZERO(ptr,n)                        \
+    SecureZeroMemory(ptr,n)
+
+#include "frame_allocator.h"
+```
+
+A full example is given in `test_windows.c`. To compile with Microsoft
+Compiler just type `cl test_windows.c`.
 
 ## API
 
@@ -300,3 +355,46 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+DECLARE_FRAME_ALLOCATOR();
+
+void cb_a(int* a)
+{
+    printf("  Destroy a: %d\n", *a);
+}
+
+void cb_b(int* b)
+{
+    printf("  Destroy b: %d\n", *b);
+}
+
+void cb_c(int* c)
+{
+    printf("  Destroy c: %d\n", *c);
+}
+
+int main(int argc, char** argv)
+{
+    printf("Test case: %s", argv[0]);
+    if (argc > 1)
+        printf(" %s", argv[1]);
+    printf("\n");
+
+    frame_allocator_init(4096);
+
+    int* a = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_a);
+    *a = 1;
+    printf("  a=%d\n", *a);
+    frame_swap(true);
+    int* b = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_b);
+    *b = 2;
+    *a = 3;
+    printf("  a=%d, b=%d\n", *a, *b);
+    frame_swap(true);
+    int* c = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_c);
+    *c = 4;
+    *b = 5;
+    printf("  b=%d, c=%d\n", *b, *c);
+    frame_allocator_destroy();
+}
