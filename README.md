@@ -1,4 +1,4 @@
-# Single header thread safe frame allocator for C
+# Single header thread-safe frame allocator for C
 
 Frame allocator allows efficient memory management without the
 need to individually deallocate memory. In many use cases, the
@@ -326,11 +326,65 @@ int* c = frame_malloc(sizeof(int));
 *a = 6; // NOT OK, var 'a' is "freed"
 ```
 
-### Debug logging
+### GET_REALLOC_SIZE()
 
-If you want to disable log messages each time frame was swapped,
-define `LOGGER_DEBUG(...)` macro before including the library to be
-empty. By default, it uses `printf` which is declared in `stdio.h`.
+```
+GET_REALLOC_SIZE(ptr)
+```
+
+Use `GET_REALLOC_SIZE` to query the size of an allocation. This
+macro is available only if you included the library with
+`FRAME_REALLOC` configuration on.
+
+## Keeping pointers automatically in the current frame
+
+It is possible to add automated object coping from the old bank to
+new when bank is swapped. With this feature, it is possible to a
+provide simple stop-the-world "garbage collection", and use the
+frame allocator beyond its initial use cases.
+
+In order to do this, pointers holding "persistent" objects are
+registered to the frame allocator. Since the object will move we
+actually have to register a pointer to pointer to keep track of
+the object when location has changed. By default, `frame_realloc` is used
+to take the copy, but to move more complex objects a copy callback
+can be registered at the same time when the pointer is registered.
+
+When `frame_swap` is called the copying takes place. Note that all
+other concurrent activity by other threads must be stopped while this
+copying is being done.
+
+### frame_keep_object()
+
+```
+int frame_keep_object(void** ptrp, void*(*copy_func)(void*))
+```
+
+This function registers an object to be copied to new bank when it
+becomes active. The first argument `ptrp` is a pointer to the pointer
+holding the object. It will be updated when copying takes place. If
+`copy_func` is `NULL`, `frame_realloc` is used to take the copy. The
+user can provide, however, a function to take care of the copying.
+See `test_keep.c` for more details.
+
+### frame_discard_object()
+
+```
+int frame_discard_object(void** ptr)
+```
+
+This function removes an object from the keep list. The bank swapping
+will later unallocate memory reserved for the object and call the
+clean up callback if it is registered.
+
+On success, `0` is returned. If the object was not found, the
+function returns `1`.
+
+## Debug logging
+
+If you want to disable log messages each time frame is swapped, add
+`#define LOGGER_DEBUG(...)` before including the library. By default,
+it uses `printf` which is declared in `stdio.h`.
 
 ## License
 
@@ -355,46 +409,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
-DECLARE_FRAME_ALLOCATOR();
-
-void cb_a(int* a)
-{
-    printf("  Destroy a: %d\n", *a);
-}
-
-void cb_b(int* b)
-{
-    printf("  Destroy b: %d\n", *b);
-}
-
-void cb_c(int* c)
-{
-    printf("  Destroy c: %d\n", *c);
-}
-
-int main(int argc, char** argv)
-{
-    printf("Test case: %s", argv[0]);
-    if (argc > 1)
-        printf(" %s", argv[1]);
-    printf("\n");
-
-    frame_allocator_init(4096);
-
-    int* a = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_a);
-    *a = 1;
-    printf("  a=%d\n", *a);
-    frame_swap(true);
-    int* b = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_b);
-    *b = 2;
-    *a = 3;
-    printf("  a=%d, b=%d\n", *a, *b);
-    frame_swap(true);
-    int* c = frame_malloc_with_cleanup(sizeof(int), (void (*)(void*)) cb_c);
-    *c = 4;
-    *b = 5;
-    printf("  b=%d, c=%d\n", *b, *c);
-    frame_allocator_destroy();
-}

@@ -107,6 +107,13 @@ typedef struct frame_clean_up_cb_list {
     struct frame_clean_up_cb_list* next;
 } frame_clean_up_cb_list_t;
 
+#ifdef FRAME_REALLOC
+typedef struct frame_keep_list {
+    void** ptrp;
+    void* (*copy_func)(void*);
+    struct frame_keep_list* next;
+} frame_keep_list_t;
+#endif
 
 /* Frame allocator data type */
 typedef struct {
@@ -114,6 +121,9 @@ typedef struct {
     unsigned char* start;
     size_t size;
     frame_clean_up_cb_list_t* cleanups;
+#ifdef FRAME_REALLOC
+    frame_keep_list_t* keeplist;
+#endif
 } frame_allocator_t;
 
 
@@ -178,6 +188,9 @@ frame_allocator_init(FRAME_CONTEXT_DECLAREP size_t frame_size)
     allocator->start = area;
     allocator->size = frame_size;
     allocator->cleanups = NULL;
+#ifdef FRAME_REALLOC
+    allocator->keeplist = NULL;
+#endif
 
     /* Initialize bank 1 */
     allocator = (frame_allocator_t*)
@@ -186,6 +199,9 @@ frame_allocator_init(FRAME_CONTEXT_DECLAREP size_t frame_size)
     allocator->start = area;
     allocator->size = frame_size;
     allocator->cleanups = NULL;
+#ifdef FRAME_REALLOC
+    allocator->keeplist = NULL;
+#endif
 
     /* Activate bank 0 */
 #ifdef FRAME_WITH_CONTEXT
@@ -222,6 +238,13 @@ frame_allocator_destroy(FRAME_CONTEXT_DECLAREV)
     frame_allocator_clean_up(allocator);
     allocator = frame_allocator_get(FRAME_CONTEXT !bank);
     frame_allocator_clean_up(allocator);
+
+#ifdef FRAME_REALLOC
+    for (frame_keep_list_t *next, *e = _frame_allocator->keeplist; e; e = next) {
+        next = e->next;
+        FREE(e);
+    }
+#endif
 
     FREE(_frame_allocator->start);
 }
@@ -406,6 +429,28 @@ frame_swap(FRAME_CONTEXT_DECLAREP bool clear)
 
     LOGGER_DEBUG("Using bank: %d\n", bank);
 
+#ifdef FRAME_REALLOC
+    allocator->keeplist = frame_allocator_get(FRAME_CONTEXT !bank)->keeplist;
+    /* Take copy of objects marked to be kept */
+    frame_keep_list_t** prev = NULL;
+    frame_keep_list_t* next;
+    for (frame_keep_list_t* e = allocator->keeplist; e; e = next) {
+        next = e->next;
+        if (!e->ptrp) {
+            if (prev == NULL)
+                allocator->keeplist = next;
+            else
+                *prev = next;
+            FREE(e);
+        } else {
+            *e->ptrp = e->copy_func ?
+                    e->copy_func(*e->ptrp) :
+                    frame_realloc(*e->ptrp, GET_REALLOC_SIZE(*e->ptrp));
+           prev = &e->next;
+       }
+    }
+#endif
+
     if (clear) {
         frame_allocator_clean_up(allocator);
         allocator->fp = SETBANK(allocator, bank);
@@ -416,5 +461,38 @@ frame_swap(FRAME_CONTEXT_DECLAREP bool clear)
 #endif
     _frame_allocator = allocator;
 }
+
+#ifdef FRAME_REALLOC
+static inline int
+frame_keep_ptr(void** ptrp, void* (*copy_func)(void*))
+{
+    frame_keep_list_t* elem = MALLOC(sizeof(frame_keep_list_t));
+    frame_keep_list_t* list;
+
+    if (!elem)
+        return 1;
+
+    elem->ptrp = ptrp;
+    elem->copy_func = copy_func;
+    do {
+        list = _frame_allocator->keeplist;
+        elem->next = list;
+    } while (!CAS(&_frame_allocator->keeplist, &list, elem));
+
+    return 0;
+}
+
+static inline int
+frame_discard_ptr(void** ptrp)
+{
+    for (frame_keep_list_t* e = _frame_allocator->keeplist; e; e = e->next) {
+        if (e->ptrp == ptrp)
+            e->ptrp = NULL;
+                return 0;
+    }
+
+    return 1;
+}
+#endif
 
 #endif /* guard */
