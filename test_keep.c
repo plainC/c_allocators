@@ -1,5 +1,6 @@
-#include <stdio.h>
-#include <string.h>
+#if defined(WIN32) || defined(_WIN32) || defined (__WIN32__)
+# include "config_windows.h"
+#endif
 #define FRAME_REALLOC
 #include "frame_allocator.h"
 
