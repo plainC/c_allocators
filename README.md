@@ -1,4 +1,27 @@
-# Single header thread-safe frame allocator for C
+# Single header thread-safe allocator library for C
+
+This library contains three single header allocators for C.
+malloc/free is in many case not optimal allocation mechanism.
+For temporary work, we might want to do the job and skip the
+clean up part by freeing the memory at once. A region allocator
+is perfect for that. Allocations can be done quickly since and
+there is no need to free allocations individually since they all
+come from the same memory region.
+
+Frame allocator can be used the same way. Allocations do not need
+to be freed separately. It has, however, one advantage over region
+allocator. The previous generation of allocations can still be
+accessed. Only the next generation switch will free them. This
+allocation scheme is often used in games, for instance.
+
+Smart pointer allocator provides reference counting for objects.
+When the reference count reaches zero the memory is deallocated.
+
+# Region allocator
+
+This section is to be completed.
+
+# Frame allocator
 
 Frame allocator allows efficient memory management without the
 need to individually deallocate memory. In many use cases, the
@@ -386,7 +409,11 @@ If you want to disable log messages each time frame is swapped, add
 `#define LOGGER_DEBUG(...)` before including the library. By default,
 it uses `printf` which is declared in `stdio.h`.
 
-## License
+# Smart pointer allocator
+
+This section is to be completed.
+
+# License
 
 MIT License
 
