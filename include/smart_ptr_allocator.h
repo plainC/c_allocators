@@ -59,9 +59,9 @@
 
 
 /* Compare and swap method */
-#ifndef CAS
+#ifndef CAS_UINT
 #include <stdatomic.h>
-#define CAS(destp,origp,newval)                                \
+#define CAS_UINT(destp,origp,newval)                                \
     atomic_compare_exchange_weak(destp,origp,newval)
 #endif
 
@@ -124,7 +124,7 @@ smart_ptr_ref(void* p)
         refcount = *GET_REFCOUNTP(p);
         if (!(refcount >> 1))
             return 1;
-    } while (!CAS(GET_REFCOUNTP(p), &refcount, refcount + (1 << 1)));
+    } while (!CAS_UINT(GET_REFCOUNTP(p), &refcount, refcount + (1 << 1)));
 
     return 0;
 }
@@ -138,7 +138,7 @@ smart_ptr_unref(void* p)
         refcount = *GET_REFCOUNTP(p);
         if (!(refcount >> 1))
             return;
-    } while (!CAS(GET_REFCOUNTP(p), &refcount, refcount - (1 << 1)));
+    } while (!CAS_UINT(GET_REFCOUNTP(p), &refcount, refcount - (1 << 1)));
 
     if (((refcount - (1 << 1)) >> 1) == 0) {
         if (HAS_CLEAN_UP(p)) {
