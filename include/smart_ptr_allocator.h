@@ -115,7 +115,7 @@ smart_ptr_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
     return (void*) (((unsigned char*) q) + sizeof(volatile unsigned));
 }
 
-static inline int
+static inline void*
 smart_ptr_ref(void* p)
 {
     unsigned refcount;
@@ -123,10 +123,10 @@ smart_ptr_ref(void* p)
     do {
         refcount = *GET_REFCOUNTP(p);
         if (!(refcount >> 1))
-            return 1;
+            return NULL;
     } while (!CAS_UINT(GET_REFCOUNTP(p), &refcount, refcount + (1 << 1)));
 
-    return 0;
+    return p;
 }
 
 static inline void
