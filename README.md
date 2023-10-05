@@ -411,8 +411,60 @@ it uses `printf` which is declared in `stdio.h`.
 
 # Smart pointer allocator
 
-This section is to be completed.
+Smart pointer allocator library implements reference counted memory
+allocation methods. Memory for objects is allocated with
+`smart_ptr_malloc` (or its variants) and freed with `smart_ptr_unref`.
+When object is created its reference count is set to one. Reference
+count can be increased using `smart_ptr_ref` function. The object is
+freed only when reference count gets zero.
 
+
+## API
+
+### smart_ptr_malloc()
+
+```
+void* smart_ptr_malloc(size_t size)
+```
+
+Allocates given size of memory block to hold data. Reference count is
+set to zero. Allocated memory is not initialized.
+
+### smart_ptr_malloc0()
+
+```
+void* smart_ptr_malloc0(size_t size)
+```
+
+Allocates given size of memory block to hold data. Reference count is
+set to zero. Allocated memory is initialized to zero.
+
+### smart_ptr_malloc_with_cleanup()
+```
+void* smart_ptr_malloc_with_cleanup(size_t size, void (*cleanup)(void*))
+```
+Allocates given size of memory block to hold data. Reference count is
+set to zero. A clean up callback is registered. It is called when
+reference count gets zero before releasing the memory block.
+
+### smart_ptr_ref()
+
+```
+void* smart_ptr_ref(void* p)
+```
+
+Increments the reference count of an object.
+
+### smart_ptr_unref()
+
+```
+void smart_ptr_unref(void* p)
+```
+
+Decrements the reference count of an object. Memory is released if the
+reference count goes to zero. If a clean up callback has been registered,
+it is called before freeing the memory.
+ 
 # License
 
 MIT License
