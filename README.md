@@ -16,10 +16,52 @@ allocation scheme is often used in games, for instance.
 
 Smart pointer allocator provides reference counting for objects.
 When the reference count reaches zero the memory is deallocated.
+This implementation supports strong references only but does not
+introduce any overhead when referencing allocated objects which
+is the drawback in supporting weak pointers.
 
 # Region allocator
 
-This section is to be completed.
+With region allocator, all memory allocations of a region can be
+released at once avoiding the work of deallocating objects separately
+and possibly causing memory fragmentation. The free operation is very
+fast, just one pointer is moved back to original position. This implementation
+makes it possible to attach a clean up callback to allocations so that an
+external callback is called for the object when region is cleared.
+
+If you need to support multiple region allocators, define `REGION_WITH_CONTEXT`
+before including region allocator. It adds the allocator context argument
+as the first argument to all functions.
+
+## Initialization
+
+Use `region_allocator_init` to initialize a region allocator. For instance,
+`region_allocator_init(4096)` initializes 4096 bytes for allocation.
+
+## Allocation
+
+Use `region_malloc` to allocate memory from a region. The argument specifies
+the size of the allocation.
+
+Use `region_malloc_with_cleanup` to allocate memory with a clean up function.
+The first argumenet specifies the size of the allocation, and the second
+provides the clean up function. It is called when the region is freed.
+
+## Memory release
+
+Use `region_allocator_clear` to release all allocations of a region. If any
+object had a callback function it is called.
+
+The region can now be reused for new allocation. It is empty and has its full
+capasity.
+
+## Destruction of region
+
+Use `region_allocator_destroy` to destroy a region allocator. All memory is
+freed. Region cannot be used for new allocations. If region was not empty and
+some allocated objects had a callback specified they are called before releasing
+the memory back.
+
 
 # Frame allocator
 
@@ -469,7 +511,7 @@ it is called before freeing the memory.
 
 MIT License
 
-Copyright (c) 2020 Jukka-Pekka Iivonen
+Copyright (c) 2020, 2023, 2024 Jukka-Pekka Iivonen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
